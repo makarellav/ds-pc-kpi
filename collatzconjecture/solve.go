@@ -1,6 +1,6 @@
 package collatzconjecture
 
-import "sync"
+import "sync/atomic"
 
 // type result struct {
 // 	steps      int
@@ -8,8 +8,15 @@ import "sync"
 // }
 
 type total struct {
-	mu    sync.Mutex
-	steps int
+	steps int64 // must be int64 to use with atomic package
+}
+
+func (t *total) add(steps int) {
+	atomic.AddInt64(&t.steps, int64(steps))
+}
+
+func (t *total) get() int64 {
+	return atomic.LoadInt64(&t.steps)
 }
 
 func Solve(n int) int {
@@ -26,8 +33,8 @@ func Solve(n int) int {
 
 		// steps++
 		// hailstones = append(hailstones, n)
-		t.steps++
+		t.add(1)
 	}
 
-	return t.steps
+	return int(t.get())
 }

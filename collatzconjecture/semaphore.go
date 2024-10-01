@@ -36,9 +36,7 @@ func SemaphoreImplementation(n int, maxWorkers int) int {
 
 			result := Solve(n)
 
-			t.mu.Lock()
-			t.steps += result
-			t.mu.Unlock()
+			t.add(result)
 		}(i)
 	}
 
@@ -51,13 +49,15 @@ func SemaphoreImplementation(n int, maxWorkers int) int {
 	// 	total += result.steps
 	// }
 
-	return t.steps / n
+	return int(t.get()) / n
 }
 
 func SemaphoreImplementationBatch(n int, maxWorkers int, batchSize int) int {
 	sem := semaphore{
 		c: make(chan struct{}, maxWorkers),
 	}
+
+	// outputCh := make(chan int, n)
 
 	var t total
 	var wg sync.WaitGroup
@@ -77,13 +77,11 @@ func SemaphoreImplementationBatch(n int, maxWorkers int, batchSize int) int {
 				batchTotal += steps
 			}
 
-			t.mu.Lock()
-			t.steps += batchTotal
-			t.mu.Unlock()
+			t.add(batchTotal)
 		}(i)
 	}
 
 	wg.Wait()
 
-	return t.steps / n
+	return int(t.get()) / n
 }

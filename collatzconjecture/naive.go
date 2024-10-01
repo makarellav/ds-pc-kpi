@@ -6,8 +6,8 @@ func NaiveImplementation(n int) int {
 	for i := 1; i <= n; i++ {
 		result := Solve(i)
 
-		t.steps += result
+		t.add(result)
 	}
 
-	return t.steps / n
+	return int(t.get()) / n
 }

@@ -8,11 +8,11 @@ func solve(wg *sync.WaitGroup, jobCh <-chan int, t *total) {
 	for n := range jobCh {
 		result := Solve(n)
 
-		t.mu.Lock()
-		t.steps += result
-		t.mu.Unlock()
+		t.add(result)
 	}
 }
+
+// ||||
 
 func WorkerPoolImplementation(n int, workers int) int {
 	jobCh := make(chan int)
@@ -36,5 +36,5 @@ func WorkerPoolImplementation(n int, workers int) int {
 
 	wg.Wait()
 
-	return t.steps / n
+	return int(t.get()) / n
 }
