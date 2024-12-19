@@ -4,6 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/makarellav/ds-pc-kpi/client"
+	"github.com/makarellav/ds-pc-kpi/server"
 )
 
 func main() {
@@ -14,7 +17,7 @@ func main() {
 
 	switch *t {
 	case "server":
-		err := listen(*port)
+		err := server.Listen(*port)
 
 		if err != nil {
 			fmt.Printf("failed to start the tcp server: %v", err)
@@ -22,7 +25,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "client":
-		err := connect(*port)
+		err := client.Connect(*port)
 
 		if err != nil {
 			fmt.Printf("failed to connect to the tcp server: %v", err)
@@ -35,5 +38,4 @@ func main() {
 
 		os.Exit(1)
 	}
-
 }
