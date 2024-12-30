@@ -1,79 +1,134 @@
 package server
 
 import (
-	"encoding/gob"
+	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
+	"sync"
 )
 
-const (
-	MessageTypeText   = 1
-	MessageTypeBinary = 2
-)
+func multiplyMatrices(A, B [][]int) [][]int {
+	n := len(A)    // Number of rows in A
+	m := len(A[0]) // Number of columns in A (and rows in B)
+	l := len(B[0]) // Number of columns in B
 
-type Message struct {
-	Type    byte
-	Payload []byte
-}
-
-func handleConn(conn net.Conn) {
-	defer conn.Close()
-	decoder := gob.NewDecoder(conn)
-	encoder := gob.NewEncoder(conn)
-
-	for i := 0; i < 100; i++ { // Обробка точно 100 повідомлень
-		var msg Message
-		// Читання повідомлення від клієнта
-		err := decoder.Decode(&msg)
-		if err != nil {
-			fmt.Printf("Failed to read data from client: %v\n", err)
-			return
-		}
-
-		fmt.Printf("Received message type %d with payload: %v\n", msg.Type, msg.Payload)
-
-		// Обробка повідомлення та формування відповіді
-		var response Message
-		if msg.Type == MessageTypeText {
-			response.Type = MessageTypeText
-			response.Payload = []byte("Hello, client!")
-		} else if msg.Type == MessageTypeBinary {
-			response.Type = MessageTypeBinary
-			response.Payload = []byte{0x00, 0x01, 0x02, 0x03}
-		} else {
-			// Невідомий тип повідомлення
-			response.Type = 255
-			response.Payload = []byte("Unknown message type")
-		}
-
-		// Відправка відповіді клієнту
-		err = encoder.Encode(&response)
-		if err != nil {
-			fmt.Printf("Failed to write data to client: %v\n", err)
-			return
-		}
-
-		fmt.Printf("Sent response of type %d with payload: %v\n", response.Type, response.Payload)
+	C := make([][]int, n)
+	for i := 0; i < n; i++ {
+		C[i] = make([]int, l)
 	}
 
-	fmt.Println("Processed 100 messages, closing connection.")
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(row int) {
+			defer wg.Done()
+			for j := 0; j < l; j++ {
+				sum := 0
+				for k := 0; k < m; k++ {
+					sum += A[row][k] * B[k][j]
+				}
+				C[row][j] = sum
+			}
+		}(i)
+	}
+	wg.Wait()
+	return C
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	buf := make([]byte, 4)
+
+	// Read N
+	_, err := conn.Read(buf)
+	if err != nil {
+		log.Println("Error reading N:", err)
+		return
+	}
+	N := int(binary.BigEndian.Uint32(buf))
+
+	// Read M
+	_, err = conn.Read(buf)
+	if err != nil {
+		log.Println("Error reading M:", err)
+		return
+	}
+	M := int(binary.BigEndian.Uint32(buf))
+
+	// Read L
+	_, err = conn.Read(buf)
+	if err != nil {
+		log.Println("Error reading L:", err)
+		return
+	}
+	L := int(binary.BigEndian.Uint32(buf))
+
+	// Basic dimension check (M must be > 0 if we expect multiplication)
+	if M < 1 {
+		log.Println("Invalid matrix dimension (M must be > 0)")
+		return
+	}
+
+	// Read matrix A (N x M)
+	A := make([][]int, N)
+	for i := 0; i < N; i++ {
+		A[i] = make([]int, M)
+		for j := 0; j < M; j++ {
+			_, err := conn.Read(buf)
+			if err != nil {
+				log.Println("Error reading matrix A:", err)
+				return
+			}
+			A[i][j] = int(binary.BigEndian.Uint32(buf))
+		}
+	}
+
+	// Read matrix B (M x L)
+	B := make([][]int, M)
+	for i := 0; i < M; i++ {
+		B[i] = make([]int, L)
+		for j := 0; j < L; j++ {
+			_, err := conn.Read(buf)
+			if err != nil {
+				log.Println("Error reading matrix B:", err)
+				return
+			}
+			B[i][j] = int(binary.BigEndian.Uint32(buf))
+		}
+	}
+
+	// Multiply
+	C := multiplyMatrices(A, B)
+
+	// Send result back
+	for i := 0; i < N; i++ {
+		for j := 0; j < L; j++ {
+			binary.BigEndian.PutUint32(buf, uint32(C[i][j]))
+			conn.Write(buf)
+		}
+	}
+
+	fmt.Println("Result sent to client.")
 }
 
 func Listen(port int) error {
-	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to listen on port %d: %v", port, err)
 	}
+	defer listener.Close()
 
-	fmt.Printf("Server is listening on port %d\n", port)
-	defer l.Close()
+	fmt.Printf("Server listening on port %d\n", port)
 
 	for {
-		conn, err := l.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Printf("Failed to accept connection: %v\n", err)
+			log.Println("Connection error:", err)
 			continue
 		}
-		go handleConn(conn)
+		fmt.Println("New connection...")
+		go handleConnection(conn)
 	}
 }

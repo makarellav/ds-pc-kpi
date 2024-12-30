@@ -10,32 +10,26 @@ import (
 )
 
 func main() {
-	t := flag.String("type", "server", "specifies whether to run this program as a tcp server or as a tcp client")
-	port := flag.Int("port", 8080, "port for tcp server to listen on")
+	mode := flag.String("type", "server", "either 'server' or 'client'")
+	port := flag.Int("port", 9000, "port to listen on or connect to")
 
 	flag.Parse()
 
-	switch *t {
+	switch *mode {
 	case "server":
 		err := server.Listen(*port)
-
 		if err != nil {
-			fmt.Printf("failed to start the tcp server: %v", err)
-
+			fmt.Printf("Failed to start server: %v\n", err)
 			os.Exit(1)
 		}
 	case "client":
 		err := client.Connect(*port)
-
 		if err != nil {
-			fmt.Printf("failed to connect to the tcp server: %v", err)
-
+			fmt.Printf("Failed to connect to server: %v\n", err)
 			os.Exit(1)
 		}
-
 	default:
-		fmt.Printf("got unknown type: %q, wanted 'client' or 'server'", *t)
-
+		fmt.Printf("Unknown type '%s': expected 'server' or 'client'\n", *mode)
 		os.Exit(1)
 	}
 }
